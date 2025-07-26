@@ -3,11 +3,10 @@ import requests
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
-from newspaper import Article
 import hashlib
-from datetime import datetime
 
-KEYWORDS = ["military", "attack", "clash", "border", "conflict", "war", "thailand", "cambodia"]
+KEYWORDS = ["thailand", "cambodia", "border", "clash", "military", "attack", "conflict", "war"]
+EXCLUDE = ["israel", "russia", "ukraine", "palestinians", "gaza"]
 
 NEWS_SITES = [
     "https://www.reuters.com/world/asia-pacific/",
@@ -26,16 +25,15 @@ sent_hashes = set()
 
 def is_relevant(title: str) -> bool:
     lower = title.lower()
-    return (
-        any(k in lower for k in KEYWORDS)
-   )
+    if any(ex in lower for ex in EXCLUDE):
+        return False
+    # Require at least 2 different keywords to match
+    return sum(1 for k in KEYWORDS if k in lower) >= 2
 
 async def fetch_site(session, url):
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-        }
-        async with session.get(url, timeout=10, headers=headers) as response:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        async with session.get(url, timeout=10, headers=headers, ssl=False) as response:
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
             articles = soup.find_all('a')
@@ -47,7 +45,9 @@ async def fetch_site(session, url):
                     continue
 
                 link = a.get('href')
-                if link and not link.startswith("http"):
+                if not link or len(link) < 5:
+                    continue
+                if not link.startswith("http"):
                     link = f"{url.rstrip('/')}/{link.lstrip('/')}"
 
                 uid = hashlib.md5(f"{title}|{link}".encode()).hexdigest()
@@ -55,24 +55,12 @@ async def fetch_site(session, url):
                     continue
                 sent_hashes.add(uid)
 
-                summary = extract_summary(link)
-                if summary:
-                    msg = f"🛑 *War Update*\n\n*{title}*\n\n📄 {summary}\n\n🔗 {link}"
-                    results.append(msg)
+                msg = f"🛑 *War News*\n\n*{title}*\n🔗 {link}"
+                results.append(msg)
             return results
     except Exception as e:
         print(f"❌ Error fetching {url}: {e}")
         return []
-
-def extract_summary(url: str) -> str:
-    try:
-        article = Article(url)
-        article.download()
-        article.parse()
-        article.nlp()
-        return article.summary
-    except Exception:
-        return ""
 
 async def check_all_sites():
     async with aiohttp.ClientSession() as session:
@@ -88,22 +76,16 @@ async def check_all_sites():
                 send_telegram_message(msg)
             print(f"✅ Total messages sent: {count}")
         else:
-            print("No relevant news found.")
-            print("✅ Total messages sent: 0")
+            print("No relevant news found.\n✅ Total messages sent: 0")
 
 def send_telegram_message(message: str):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
 
     try:
-        response = requests.post(url, data=data)
-        response.raise_for_status()
+        requests.post(url, data=data, timeout=5)
     except Exception as e:
         print(f"❌ Telegram error: {e}")
 
