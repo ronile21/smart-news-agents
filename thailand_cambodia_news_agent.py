@@ -25,11 +25,11 @@ NEWS_SITES = [
 
 sent_hashes = set()
 
-def is_relevant(title: str) -> bool:
-    lower = title.lower()
-    return (
-        any(c in lower for c in COUNTRIES) and
-        any(k in lower for k in KEYWORDS)
+#def is_relevant(title: str) -> bool:
+#    lower = title.lower()
+#    return (
+#        any(c in lower for c in COUNTRIES) and
+#        any(k in lower for k in KEYWORDS)
     )
 
 async def fetch_site(session, url):
@@ -45,8 +45,8 @@ async def fetch_site(session, url):
             results = []
             for a in articles:
                 title = a.get_text().strip()
-                if not title or not is_relevant(title):
-                    continue
+                #if not title or not is_relevant(title):
+                #    continue
 
                 link = a.get('href')
                 if link and not link.startswith("http"):
