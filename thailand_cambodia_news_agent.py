@@ -5,6 +5,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 from newspaper import Article
 import hashlib
+from datetime import datetime
 
 KEYWORDS = ["military", "attack", "clash", "border", "conflict", "war"]
 COUNTRIES = ["thailand", "cambodia"]
@@ -33,7 +34,10 @@ def is_relevant(title: str) -> bool:
 
 async def fetch_site(session, url):
     try:
-        async with session.get(url, timeout=10) as response:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
+        async with session.get(url, timeout=10, headers=headers) as response:
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
             articles = soup.find_all('a')
@@ -55,7 +59,7 @@ async def fetch_site(session, url):
 
                 summary = extract_summary(link)
                 if summary:
-                    msg = f"🛑 *War Update Found*\n\n*{title}*\n\n📄 {summary}\n\n🔗 {link}"
+                    msg = f"🛑 *War Update*\n\n*{title}*\n\n📄 {summary}\n\n🔗 {link}"
                     results.append(msg)
             return results
     except Exception as e:
@@ -78,12 +82,16 @@ async def check_all_sites():
         all_results = await asyncio.gather(*tasks)
 
         messages = sum(all_results, [])
+        count = len(messages)
+
         if messages:
             for msg in messages:
                 print(msg)
                 send_telegram_message(msg)
+            print(f"✅ Total messages sent: {count}")
         else:
             print("No relevant news found.")
+            print("✅ Total messages sent: 0")
 
 def send_telegram_message(message: str):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
