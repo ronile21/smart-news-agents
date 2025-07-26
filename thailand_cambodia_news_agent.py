@@ -5,6 +5,10 @@ import aiohttp
 from bs4 import BeautifulSoup
 import hashlib
 from collections import deque
+import pickle
+
+HASH_FILE = "hash_history.pkl"
+
 
 KEYWORDS = ["thailand", "cambodia", "border", "clash", "military", "attack", "conflict", "war"]
 EXCLUDE = ["israel", "russia", "ukraine", "palestinians", "gaza"]
@@ -22,8 +26,28 @@ NEWS_SITES = [
     "https://www.khmertimeskh.com/category/national/"
 ]
 
-# A deque of 2 sets – memory of last 2 runs only
-hash_history = deque(maxlen=2)
+hash_history = deque(maxlen=60)
+
+def save_hash_history(history):
+    try:
+        with open(HASH_FILE, "wb") as f:
+            pickle.dump(history, f)
+    except Exception as e:
+        print(f"❌ Failed to save hash history: {e}")
+
+def load_hash_history():
+    if os.path.exists(HASH_FILE):
+        try:
+            with open(HASH_FILE, "rb") as f:
+                data = pickle.load(f)
+                if isinstance(data, deque):
+                    return deque(data, maxlen=60)  
+        except Exception as e:
+            print(f"❌ Failed to load hash history: {e}")
+    return deque(maxlen=60)
+
+# Load previous hash history
+hash_history = load_hash_history()
 
 def is_relevant(title: str) -> bool:
     lower = title.lower()
@@ -85,6 +109,8 @@ async def check_all_sites():
 
     # Push current hashes to the history queue
     hash_history.append(current_run_hashes)
+    save_hash_history(hash_history)
+
 
 def send_telegram_message(message: str):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
