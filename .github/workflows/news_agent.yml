@@ -2,16 +2,29 @@ name: Run Thailand-Cambodia News Agent
 
 on:
   schedule:
-    - cron: '0 */4 * * *'     # Every 4 hours
-  workflow_dispatch:        # Manual trigger
+    - cron: '0 */4 * * *'  # Every 4 hours
+  workflow_dispatch:       # Manual trigger from GitHub UI
 
 jobs:
   run-agent:
-- name: Load Telegram Secrets into environment
-  run: |
-    echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> $GITHUB_ENV
-    echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> $GITHUB_ENV
+    runs-on: ubuntu-latest
 
-- name: Run agent
-  run: python thailand_cambodia_news_agent.py
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Load Telegram Secrets into environment
+        run: |
+          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> $GITHUB_ENV
+          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run agent
+        run: python thailand_cambodia_news_agent.py
