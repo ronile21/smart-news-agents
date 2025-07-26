@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: thailand-cambodia-news-agent
+    env: python
+    buildCommand: ""
+    startCommand: thailand_cambodia_news_agent.py.py
+    autoDeploy: false
