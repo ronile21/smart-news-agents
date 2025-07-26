@@ -48,7 +48,6 @@ async def fetch_site(session, url):
                 if link and not link.startswith("http"):
                     link = f"{url.rstrip('/')}/{link.lstrip('/')}"
 
-                # Deduplication by title+link
                 uid = hashlib.md5(f"{title}|{link}".encode()).hexdigest()
                 if uid in sent_hashes:
                     continue
@@ -56,7 +55,7 @@ async def fetch_site(session, url):
 
                 summary = extract_summary(link)
                 if summary:
-                    msg = f"🛑 War Update: *{title}*\n\n{summary}\n👉 {link}"
+                    msg = f"🛑 *War Update Found*\n\n*{title}*\n\n📄 {summary}\n\n🔗 {link}"
                     results.append(msg)
             return results
     except Exception as e:
@@ -90,7 +89,11 @@ def send_telegram_message(message: str):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    data = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
 
     try:
         response = requests.post(url, data=data)
