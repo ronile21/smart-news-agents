@@ -40,7 +40,8 @@ jobs:
         run: |
           git config --global user.name "WarAgent"
           git config --global user.email "war@agent.com"
-          git checkout -b data-state || git checkout data-state
+          git fetch origin data-state
+          git checkout -b data-state origin/data-state || git checkout data-state
           git add hash_history.pkl
           git commit -m "Update hash history at $(date)" || echo "Nothing to commit"
           git push origin HEAD:data-state
