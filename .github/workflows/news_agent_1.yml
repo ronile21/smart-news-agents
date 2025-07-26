@@ -26,22 +26,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Load hash_history.pkl from cache if it exists
-      - name: Restore hash history cache
-        uses: actions/cache@v4
-        with:
-          path: hash_history.pkl
-          key: hash-history
+      - name: Pull hash_history.pkl from data-state branch
+        run: |
+          git fetch origin data-state
+          git checkout origin/data-state -- hash_history.pkl || echo "No previous history found"
+
+
 
       - name: Run agent
         run: python thailand_cambodia_news_agent.py
 
-      # Save updated hash_history.pkl back to cache
-      - name: Save updated hash history cache
-        uses: actions/cache@v4
-        with:
-          path: hash_history.pkl
-          key: hash-history-${{ github.run_id }}
+      - name: Commit updated hash history to data-state branch
+        run: |
+          git config --global user.name "WarAgent"
+          git config --global user.email "war@agent.com"
+          git checkout -b data-state || git checkout data-state
+          git add hash_history.pkl
+          git commit -m "Update hash history at $(date)" || echo "Nothing to commit"
+          git push origin HEAD:data-state
 
       # Optional: upload it as artifact (to download manually)
       - name: Upload hash history (for debug)
