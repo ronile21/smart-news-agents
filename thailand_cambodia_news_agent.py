@@ -3,8 +3,11 @@ import requests
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
+from newspaper import Article
+import hashlib
 
-KEYWORDS = ["border", "conflict", "military", "attack", "clash", "war"]
+KEYWORDS = ["military", "attack", "clash", "border", "conflict", "war"]
+COUNTRIES = ["thailand", "cambodia"]
 
 NEWS_SITES = [
     "https://www.reuters.com/world/asia-pacific/",
@@ -19,20 +22,14 @@ NEWS_SITES = [
     "https://www.khmertimeskh.com/category/national/"
 ]
 
-async def fetch_summary(session, article_url):
-    try:
-        async with session.get(article_url, timeout=10) as response:
-            html = await response.text()
-            soup = BeautifulSoup(html, 'html.parser')
+sent_hashes = set()
 
-            for p in soup.find_all('p'):
-                text = p.get_text().strip()
-                if len(text) > 40:
-                    return text
-            return "No summary found."
-    except Exception as e:
-        print(f"❌ Error fetching summary from {article_url}: {e}")
-        return "Error loading summary."
+def is_relevant(title: str) -> bool:
+    lower = title.lower()
+    return (
+        any(c in lower for c in COUNTRIES) and
+        any(k in lower for k in KEYWORDS)
+    )
 
 async def fetch_site(session, url):
     try:
@@ -41,35 +38,49 @@ async def fetch_site(session, url):
             soup = BeautifulSoup(html, 'html.parser')
             articles = soup.find_all('a')
 
-            matches = []
+            results = []
             for a in articles:
                 title = a.get_text().strip()
-                lower_title = title.lower()
+                if not title or not is_relevant(title):
+                    continue
 
-                if (("thailand" in lower_title or "cambodia" in lower_title) and
-                    any(k in lower_title for k in KEYWORDS)):
+                link = a.get('href')
+                if link and not link.startswith("http"):
+                    link = f"{url.rstrip('/')}/{link.lstrip('/')}"
 
-                    link = a.get('href')
-                    if link and not link.startswith("http"):
-                        link = f"{url.rstrip('/')}/{link.lstrip('/')}"
+                # Deduplication by title+link
+                uid = hashlib.md5(f"{title}|{link}".encode()).hexdigest()
+                if uid in sent_hashes:
+                    continue
+                sent_hashes.add(uid)
 
-                    summary = await fetch_summary(session, link)
-                    matches.append((title, summary, link))
-
-            return matches
+                summary = extract_summary(link)
+                if summary:
+                    msg = f"🛑 War Update: *{title}*\n\n{summary}\n👉 {link}"
+                    results.append(msg)
+            return results
     except Exception as e:
         print(f"❌ Error fetching {url}: {e}")
         return []
 
+def extract_summary(url: str) -> str:
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        article.nlp()
+        return article.summary
+    except Exception:
+        return ""
+
 async def check_all_sites():
     async with aiohttp.ClientSession() as session:
         tasks = [fetch_site(session, url) for url in NEWS_SITES]
-        results = await asyncio.gather(*tasks)
+        all_results = await asyncio.gather(*tasks)
 
-        total_matches = sum(results, [])  # flatten
-        if total_matches:
-            for title, summary, link in total_matches:
-                msg = f"🛑 New war news!\n\n📰 {title}\n\n📄 {summary}\n👉 {link}"
+        messages = sum(all_results, [])
+        if messages:
+            for msg in messages:
                 print(msg)
                 send_telegram_message(msg)
         else:
@@ -78,12 +89,8 @@ async def check_all_sites():
 def send_telegram_message(message: str):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {
-        "chat_id": chat_id,
-        "text": message
-    }
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
 
     try:
         response = requests.post(url, data=data)
