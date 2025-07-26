@@ -2,3 +2,4 @@ requests
 beautifulsoup4
 aiohttp
 newspaper3k
+lxml[html_clean]
