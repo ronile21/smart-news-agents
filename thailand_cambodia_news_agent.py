@@ -1,14 +1,10 @@
-# news_agent.py
-
 import os
 import requests
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
-from datetime import datetime
-import time
 
-KEYWORDS = ["Thailand", "Cambodia", "border", "conflict", "military", "attack", "clash", "war"]
+KEYWORDS = ["border", "conflict", "military", "attack", "clash", "war"]
 
 NEWS_SITES = [
     "https://www.reuters.com/world/asia-pacific/",
@@ -23,6 +19,21 @@ NEWS_SITES = [
     "https://www.khmertimeskh.com/category/national/"
 ]
 
+async def fetch_summary(session, article_url):
+    try:
+        async with session.get(article_url, timeout=10) as response:
+            html = await response.text()
+            soup = BeautifulSoup(html, 'html.parser')
+
+            for p in soup.find_all('p'):
+                text = p.get_text().strip()
+                if len(text) > 40:
+                    return text
+            return "No summary found."
+    except Exception as e:
+        print(f"❌ Error fetching summary from {article_url}: {e}")
+        return "Error loading summary."
+
 async def fetch_site(session, url):
     try:
         async with session.get(url, timeout=10) as response:
@@ -33,11 +44,18 @@ async def fetch_site(session, url):
             matches = []
             for a in articles:
                 title = a.get_text().strip()
-                if any(keyword.lower() in title.lower() for keyword in KEYWORDS):
+                lower_title = title.lower()
+
+                if (("thailand" in lower_title or "cambodia" in lower_title) and
+                    any(k in lower_title for k in KEYWORDS)):
+
                     link = a.get('href')
                     if link and not link.startswith("http"):
                         link = f"{url.rstrip('/')}/{link.lstrip('/')}"
-                    matches.append((title, link))
+
+                    summary = await fetch_summary(session, link)
+                    matches.append((title, summary, link))
+
             return matches
     except Exception as e:
         print(f"❌ Error fetching {url}: {e}")
@@ -50,8 +68,8 @@ async def check_all_sites():
 
         total_matches = sum(results, [])  # flatten
         if total_matches:
-            for title, link in total_matches:
-                msg = f"🛑 New war news!\n\n{title}\n👉 {link}"
+            for title, summary, link in total_matches:
+                msg = f"🛑 New war news!\n\n📰 {title}\n\n📄 {summary}\n👉 {link}"
                 print(msg)
                 send_telegram_message(msg)
         else:
@@ -73,7 +91,5 @@ def send_telegram_message(message: str):
     except Exception as e:
         print(f"❌ Telegram error: {e}")
 
-
 if __name__ == "__main__":
     asyncio.run(check_all_sites())
-        
