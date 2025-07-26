@@ -32,8 +32,9 @@ def save_hash_history(history):
     try:
         with open(HASH_FILE, "wb") as f:
             pickle.dump(history, f)
+        print(f"Saved hash history with {len(history)} runs (total hashes: {sum(len(run) for run in history)}).")
     except Exception as e:
-        print(f"❌ Failed to save hash history: {e}")
+        print(f"Failed to save hash history: {e}")
 
 def load_hash_history():
     if os.path.exists(HASH_FILE):
@@ -41,9 +42,14 @@ def load_hash_history():
             with open(HASH_FILE, "rb") as f:
                 data = pickle.load(f)
                 if isinstance(data, deque):
-                    return deque(data, maxlen=60)  
+                    print(f"Loaded hash history with {len(data)} previous runs.")
+                    return deque(data, maxlen=60)
+                else:
+                    print("Loaded data is not a deque.")
         except Exception as e:
-            print(f"❌ Failed to load hash history: {e}")
+            print(f"Failed to load hash history: {e}")
+    else:
+        print("No hash_history.pkl found. Starting fresh.")
     return deque(maxlen=60)
 
 # Load previous hash history
