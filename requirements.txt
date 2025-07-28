@@ -4,3 +4,4 @@ aiohttp
 lxml
 feedparser
 python-dotenv
+loguru

@@ -10,6 +10,7 @@ import logging
 from dotenv import load_dotenv
 import feedparser
 
+
 # === Load environment variables from .env ===
 load_dotenv()
 
@@ -77,9 +78,7 @@ def is_relevant(title: str) -> bool:
         return False
     return sum(1 for k in KEYWORDS if k in lower) >= 1
 
-# === Telegram Sender ===
-def send_telegram_message(message: str):
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+# === Telegram Sender ===    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not bot_token or not chat_id:
         logging.error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID.")
@@ -94,6 +93,58 @@ def send_telegram_message(message: str):
             logging.error(f"Telegram error {response.status_code}: {response.text}")
     except Exception as e:
         logging.error(f"Telegram exception: {e}")
+
+def send_telegram_message(chat_id: str, messages: list[str]):
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+    for message in messages:
+        data = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+
+        try:
+            response = requests.post(url, data=data, timeout=5)
+            if response.status_code != 200:
+                logging.error(f"Telegram error {response.status_code} to {chat_id}: {response.text}")
+        except Exception as e:
+            logging.error(f"Telegram exception for {chat_id}: {e}")
+
+
+def get_chat_ids():
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
+
+    response = requests.get(url)
+    chat_ids = set()
+
+    if response.status_code == 200:
+        updates = response.json()
+        for update in updates.get("result", []):
+            chat = update.get("message", {}).get("chat", {})
+            chat_id = chat.get("id")
+            if chat_id:
+                chat_ids.add(str(chat_id))
+    
+    return list(chat_ids)
+
+def broadcast_to_all(messages: list[str]):
+    chat_ids = get_chat_ids()
+    device_count = len(chat_ids)
+    total_messages_sent = 0
+
+    print(f"📡 Found {device_count} chat(s) to send message to.")
+
+    for chat_id in chat_ids:
+        send_telegram_message(chat_id, messages)
+        print(f"✅ Sent {len(messages)} message(s) to chat_id {chat_id}")
+        total_messages_sent += len(messages)
+
+    print(f"📬 Total devices: {device_count}")
+    print(f"✉️ Messages per device: {len(messages)}")
+    print(f"📊 Total messages sent: {total_messages_sent}")
 
 # === HTML Site Fetcher ===
 async def fetch_site(session, url):
@@ -181,9 +232,9 @@ async def check_all_sites():
         messages = [msg for result in all_results for msg in result]
         count = len(messages)
 
+
         if messages:
-            for msg in messages:
-                send_telegram_message(msg)
+            broadcast_to_all(messages)
             logging.info(f"✅ Total messages sent: {count}")
         else:
             logging.info("No relevant news found.\n✅ Total messages sent: 0")
