@@ -2,3 +2,5 @@ requests
 beautifulsoup4
 aiohttp
 lxml
+feedparser
+python-dotenv
